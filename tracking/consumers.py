@@ -12,6 +12,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_group_name = 'chat_%s' % self.room_name
         beep_exists = await self.check_beep(phone)
         print(beep_exists)
+        print("change")
 
         if beep_exists:
         # Join room group
