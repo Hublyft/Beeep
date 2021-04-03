@@ -9,11 +9,14 @@ import json
 import datetime
 import random
 import pandas as pd
-from beeep.settings import BASE_DIR
+from beeep.settings.base import BASE_DIR
 from scipy.spatial import distance
 from django.db.models import F, Func, Value, CharField
 from math import radians, cos, sin, asin, sqrt
+import base64
+import io
 from helpers.email import send_verification_mail
+import urllib3
 import requests
 
 
@@ -72,10 +75,11 @@ class Lawyer(models.Model):
     lastname = models.CharField(max_length=30)
     twitter_handle = models.CharField(max_length=150, blank=True, null=True)
     address = models.CharField(max_length=150, blank=True, null=True)
+    scn_number = models.CharField(max_length=150, blank=True, null=True)
     email = models.CharField(max_length=150, blank=True, null=True)
     phone = models.CharField(max_length=150, blank=True, null=True)
-    longitude = models.FloatField(blank=True, null=True)
-    latitude = models.FloatField(blank=True, null=True)
+    longitude = models.FloatField(blank=True, default=0.0)
+    latitude = models.FloatField(blank=True, default=0.0)
     is_verified = models.BooleanField(default=False)
     token = models.CharField(max_length=200, null=True, blank=True)
     image = models.ImageField(
@@ -125,8 +129,18 @@ class Lawyer(models.Model):
         address = data.get("address")
         if address:
             self.address = address
-        email = data.get("email")
 
+        scn_number = data.get("scn_number")
+        if scn_number:
+            self.scn_number = scn_number
+
+        image = data.get("image")
+        if image:
+            img = base64.b64decode(image)
+            self.image = self.compressImage(img)
+            self.user.save()
+
+        email = data.get("email")
         if email:
             self.email = email
             self.user.email = email
@@ -151,7 +165,7 @@ class Lawyer(models.Model):
     def get_closest(user):
 
         lawyers = Lawyer.objects.all().values("longitude", "latitude",
-                                              "firstname", "lastname", "phone","on_call")
+                                              "firstname", "lastname", "phone","on_call","image")
 
         lawyer_frame = pd.DataFrame(list(lawyers))
 
@@ -185,7 +199,8 @@ class Lawyer(models.Model):
 
         return data
 
-    def compressImage(self, uploadedImage):
+    @staticmethod
+    def compressImage(uploadedImage):
 
         imageTemporary = Image.open(uploadedImage)
         outputIoStream = BytesIO()
@@ -209,7 +224,9 @@ class Lawyer(models.Model):
     def __str__(self):
         return self.firstname
 
-    def create(self, username="null", firstname="null", lastname="null", twitter_handle="", email="null@null.com", password="00000000", address="none supplied", phone="0"):
+    def create(self, username="null", firstname="null", lastname="null", twitter_handle="", email="null@null.com", password="00000000", address="none supplied", phone="0",image="null"):
+
+
 
         user = User.objects.create(
             username=phone, first_name=firstname, last_name=lastname, email=email)
@@ -217,8 +234,17 @@ class Lawyer(models.Model):
         user.username = phone
         user.save()
 
+        if image == "null":
+            url = "https://www.tc.columbia.edu/media/media-library-2014/profilePicture.jpg"
+            http = urllib3.PoolManager()
+            r = http.request('GET', url)
+            img = io.BytesIO(r.data)
+            img.name = "default_profile.jpg"
+            image = Lawyer.compressImage(img)
+
+
         lawyer = Lawyer.objects.create(user=user, firstname=firstname, lastname=lastname,
-                                       twitter_handle=twitter_handle, email=email, address=address, phone=phone)
+                                       twitter_handle=twitter_handle, email=email, address=address, phone=phone,image=image)
 
         return lawyer
 

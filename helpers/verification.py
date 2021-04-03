@@ -1,5 +1,5 @@
 import json, datetime, random
-from beeep.settings import BASE_DIR
+from beeep.settings.base import BASE_DIR
 # from dateutil import parser
 
 

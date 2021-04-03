@@ -1,6 +1,7 @@
 from django.http import HttpResponse, HttpResponseRedirect
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
+from django.core.paginator import Paginator
 from helpers.http_codes import http_codes
 from django.shortcuts import render
 from useraccounts.models import *
@@ -638,7 +639,7 @@ def ping_lawyer(request):
 
 
 @csrf_exempt
-def get_closest_lawyers(request):
+def get_closest_lawyers(request,page):
 
     if request.method == 'GET':
 
@@ -655,12 +656,17 @@ def get_closest_lawyers(request):
 
                 main_user = main_user[0]
                 closest_lawyers = Lawyer.get_closest(main_user)
+                paginator = Paginator(closest_lawyers,1)
+                
+
+                if int(page) > paginator.num_pages :
+                    return JsonResponse({"msg":"Empty page error"},status=412)
 
                 resp = (json.dumps({"response": {
                     "code": http_codes["Created"],
-                    "task_successful": True,
+                "task_successful": True,
                     "content": {
-                        "details": closest_lawyers,
+                        "details": paginator.page(page).object_list,
                         "distance_unit": "km",
                         "user_type": main_user.__class__.__name__,
                     },
@@ -809,6 +815,7 @@ def get_user_location(request, phone):
 
                 main_user = main_user[0]
                 user_data = main_user.get_details()
+
 
                 target_civilian_location = Civilian.objects.get(phone = phone).get_location()
 

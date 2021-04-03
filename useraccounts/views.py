@@ -11,6 +11,7 @@ import json
 import ast
 from helpers.http_codes import http_codes
 from django.shortcuts import render
+import base64
 # from snippet import helpers
 
 
@@ -237,13 +238,23 @@ def mobile_register_lawyer(request):
 
     if request.method == 'POST':
 
-        data = json.loads(request.body)
-        first_name = data["firstname"]
-        last_name = data["lastname"]
-        email = data["email"]
-        phone = data["phone"]
-        password = data["password"]
-        twitter_handle = data["twitter_handle"] if data["twitter_handle"] != "" else "@"
+        first_name = str(request.POST["firstname"]).strip()
+        last_name = str(request.POST["lastname"]).strip()
+        email = str(request.POST["email"]).strip()
+        phone = str(request.POST["phone"]).strip()
+        password = str(request.POST["password"]).strip()
+        image = request.FILES["image"]
+        twitter_handle = str(request.POST["twitter_handle"] if request.POST["twitter_handle"] != "" else "@").strip()
+
+
+        # data = json.loads(request.body)
+        # first_name = data["firstname"]
+        # last_name = data["lastname"]
+        # email = data["email"]
+        # phone = data["phone"]
+        # password = data["password"]
+        # image = data["image"]
+        # twitter_handle = data["twitter_handle"] if data["twitter_handle"] != "" else "@"
 
         if Lawyer.objects.filter(phone=phone).exists() or User.objects.filter(username=phone).exists():
 
@@ -254,8 +265,9 @@ def mobile_register_lawyer(request):
 
         else:
 
+            compressed_image = Lawyer.compressImage(image)
             lawyer = Lawyer().create(firstname=first_name, lastname=last_name, phone=phone,
-                                     password=password, email=email, twitter_handle=twitter_handle)
+                                     password=password, email=email, twitter_handle=twitter_handle,image=compressed_image)
 
             resp = (json.dumps({"response": {
                 "code": http_codes["Created"],

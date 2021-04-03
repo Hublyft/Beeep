@@ -31,9 +31,8 @@ urlpatterns = [
     path('add_buddy', views.add_buddy, name='add_buddy'),
     path('add_location', views.add_location, name='add_location'),
     path('get_user_location/<str:phone>', views.get_user_location, name='get_user_location'),
-    path('get_closest_lawyers', views.get_closest_lawyers, name='get_closest_lawyers'),
+    path('get_closest_lawyers/<str:page>', views.get_closest_lawyers, name='get_closest_lawyers'),
     path('get_closest_lawyers_to_user/<str:phone>', views.get_closest_lawyers_to_user, name='get_closest_lawyers_to_user'),
     path('get_all_forms/', views.get_all_forms, name='get_all_forms'),
     path('post_credentials_form/', views.post_credentials_form, name='post_credentials_form')
 ]
-urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
