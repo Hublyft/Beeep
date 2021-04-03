@@ -12,13 +12,9 @@ https://docs.djangoproject.com/en/2.0/ref/settings/
 
 import os
 import django_heroku
-import socket
 # from google.oauth2 import service_account
 
-try:
-    HOSTNAME = socket.gethostname()
-except:
-    HOSTNAME = 'localhost'
+
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -32,8 +28,6 @@ LOGIN_URL = '/auth/login'
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/2.0/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'v$%^qr!1@t+!fe@8=#2f1csz@8-=wob$3+2($2dz-k4+m=#pbo'
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -52,6 +46,8 @@ ALLOWED_HOSTS = [
 #     HOSTNAME = 'localhost'
 
 
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = 'v$%^qr!1@t+!fe@8=#2f1csz@8-=wob$3+2($2dz-k4+m=#pbo'
 
 # LOGIN_REDIRECT_URL = '/'
 # LOGOUT_REDIRECT_URL = '/auth/login'
@@ -73,6 +69,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.gis',
     'corsheaders',
     'main',
     'useraccounts',
@@ -197,4 +194,5 @@ EMAIL_USE_TLS = True
 
 
 
+#TODO revert heroku
 django_heroku.settings(locals())
