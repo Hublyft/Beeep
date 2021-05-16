@@ -3,7 +3,7 @@ from django.core import signals
 from django.db.models.signals import post_save
 from django.contrib.auth.models import User
 from helpers.verification import Verifier
-from helpers.email import send_verification_mail
+# from helpers.email import send_verification_mail
 from main.models import Beeep
 
 @receiver(post_save, sender=User)

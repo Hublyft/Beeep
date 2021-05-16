@@ -1,10 +1,11 @@
+from django.contrib.gis.admin import OSMGeoAdmin
 from django.contrib import admin
 from .models import *
 
-class CivilianAdmin(admin.ModelAdmin):
+class CivilianAdmin(OSMGeoAdmin):
     list_display = ('firstname', 'lastname', 'twitter_handle', 'user', 'is_verified')
 
-class LawyerAdmin(admin.ModelAdmin):
+class LawyerAdmin(OSMGeoAdmin):
     list_display = ('firstname', 'lastname', 'twitter_handle', 'user', 'is_verified')
 
 class BuddyAdmin(admin.ModelAdmin):

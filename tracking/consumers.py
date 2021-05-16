@@ -11,8 +11,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
         self.room_name = phone
         self.room_group_name = 'chat_%s' % self.room_name
         beep_exists = await self.check_beep(phone)
-        print(beep_exists)
-        print("change")
+
+        print("someone connected")
 
         if beep_exists:
         # Join room group
@@ -20,6 +20,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 self.room_group_name,
                 self.channel_name
             )
+
 
             await self.accept()
         else:
@@ -43,6 +44,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
         lat = text_data_json['lat']
         lng = text_data_json['lng']
 
+
         # Send message to room group
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -55,6 +57,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
     # Receive message from room group
     async def send_location(self, event):
+
+        
 
         # Send message to WebSocket
         await self.send(text_data=json.dumps({

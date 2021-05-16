@@ -18,6 +18,7 @@ from django.urls import path, include
 from main import views
 from django.conf import settings
 from django.conf.urls.static import static
+from helpers.cloud_messaging import CloudMessaging
 
 urlpatterns = [
     path('', views.index, name='index'),
@@ -36,3 +37,5 @@ urlpatterns = [
     path('get_all_forms/', views.get_all_forms, name='get_all_forms'),
     path('post_credentials_form/', views.post_credentials_form, name='post_credentials_form')
 ]
+
+cloud_messaging = CloudMessaging()

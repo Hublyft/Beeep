@@ -244,7 +244,8 @@ def mobile_register_lawyer(request):
         phone = str(request.POST["phone"]).strip()
         password = str(request.POST["password"]).strip()
         image = request.FILES["image"]
-        twitter_handle = str(request.POST["twitter_handle"] if request.POST["twitter_handle"] != "" else "@").strip()
+        twitter_handle = str(request.POST.get("twitter_handle","@")).strip()
+
 
 
         # data = json.loads(request.body)

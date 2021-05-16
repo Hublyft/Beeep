@@ -1,12 +1,14 @@
 from django.http import HttpResponse, HttpResponseRedirect
+from django.contrib.gis.db.models.functions import Distance
+from django.http.response import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.shortcuts import get_object_or_404
-from django.core.paginator import Paginator
+from pandas.tseries import offsets
 from helpers.http_codes import http_codes
-from django.shortcuts import render
 from useraccounts.models import *
 from main.models import *
 from cors.models import *
+import math
 import json
 
 # Create your views here.
@@ -49,7 +51,7 @@ def update_details(request):
                             "details": main_user.get_details()
                         },
                         "auth_keys": {"access_token": main_user.get_token()
-                                    }
+                                      }
                     }
                     })
                     )
@@ -138,7 +140,7 @@ def add_buddy(request):
                             "details": result["details"]
                         },
                         "auth_keys": {"access_token": main_user.get_token()
-                                    }
+                                      }
                     }
                     })
                     )
@@ -227,7 +229,7 @@ def add_location(request):
                             "details": "user_data"
                         },
                         "auth_keys": {"access_token": main_user.get_token()
-                                    }
+                                      }
                     }
                     })
                     )
@@ -313,7 +315,7 @@ def get_details(request):
                         "user_type": main_user.__class__.__name__,
                     },
                     "auth_keys": {"access_token": main_user.get_token()
-                                }
+                                  }
                 }
                 })
                 )
@@ -525,7 +527,7 @@ def get_all_plans(request):
                         "user_type": main_user.__class__.__name__,
                     },
                     "auth_keys": {"access_token": "IN HEADERS"
-                                }
+                                  }
                 }
                 })
                 )
@@ -595,7 +597,7 @@ def ping_lawyer(request):
                         "user_type": main_user.__class__.__name__,
                     },
                     "auth_keys": {"access_token": "IN HEADERS"
-                                }
+                                  }
                 }
                 })
                 )
@@ -639,7 +641,7 @@ def ping_lawyer(request):
 
 
 @csrf_exempt
-def get_closest_lawyers(request,page):
+def get_closest_lawyers(request, page):
 
     if request.method == 'GET':
 
@@ -652,26 +654,44 @@ def get_closest_lawyers(request,page):
 
                 main_user = Civilian.objects.filter(
                     user=user) or Lawyer.objects.filter(user=user)
-                # print(main_user.get_token())
+
+                offset = 5
+                page_limit = offset * int(page)
+                page_start = page_limit - offset
+                count = Lawyer.objects.all().count()
+                count = math.floor(count/offset)
+
+                if(int(page) > count):
+                    return JsonResponse({"msg":"your out of bounds"},status=412)
+
 
                 main_user = main_user[0]
-                closest_lawyers = Lawyer.get_closest(main_user)
-                paginator = Paginator(closest_lawyers,1)
-                
+                closest_lawyers = Lawyer.objects.annotate(distance=Distance(
+                    'location', main_user.location, spheroid=True)
+                ).order_by('distance')[page_start:page_limit]
 
-                if int(page) > paginator.num_pages :
-                    return JsonResponse({"msg":"Empty page error"},status=412)
+                lawyers_list = Lawyer.get_closest(closest_lawyers.values(
+                    "firstname", "lastname", "location", "phone","image","on_call","distance"
+                ))
+
+
+
+                # lawyer_serializer = LawyerSerializer(
+                #     current_lawyers, many=True)
+
+                # if int(page) > 
+                #     return JsonResponse({"msg": "Empty page error"}, status=412)
 
                 resp = (json.dumps({"response": {
                     "code": http_codes["Created"],
-                "task_successful": True,
+                    "task_successful": True,
                     "content": {
-                        "details": paginator.page(page).object_list,
-                        "distance_unit": "km",
+                        "lawyers": lawyers_list,
+                        "last_page":count,
                         "user_type": main_user.__class__.__name__,
                     },
                     "auth_keys": {"access_token": "IN HEADERS"
-                                }
+                                  }
                 }
                 })
                 )
@@ -732,7 +752,8 @@ def get_closest_lawyers_to_user(request, phone):
 
                 main_user = main_user[0]
                 target_user = Civilian.objects.get(phone=phone)
-                closest_lawyers = Lawyer.get_closest(target_user)
+                closest_lawyers = Lawyer.objects.annotate(distance=Distance(
+                    'location', main_user.location, spheroid=True)).order_by('distance')
 
                 resp = (json.dumps({"response": {
                     "code": http_codes["Created"],
@@ -743,7 +764,7 @@ def get_closest_lawyers_to_user(request, phone):
                         "user_type": target_user.__class__.__name__,
                     },
                     "auth_keys": {"access_token": "IN HEADERS"
-                                }
+                                  }
                 }
                 })
                 )
@@ -796,6 +817,8 @@ def get_closest_lawyers_to_user(request, phone):
                             "user": "", "message": "bad request method"}, "auth_keys": {"access_token": "IN HEADERS"}}}))
 
         return CORS(resp).allow_all(status_code=405)
+
+
 @csrf_exempt
 def get_user_location(request, phone):
 
@@ -803,7 +826,6 @@ def get_user_location(request, phone):
 
         try:
             auth_successful = Token.verify_token(request)
-            
 
             if auth_successful:
 
@@ -816,27 +838,25 @@ def get_user_location(request, phone):
                 main_user = main_user[0]
                 user_data = main_user.get_details()
 
-
-                target_civilian_location = Civilian.objects.get(phone = phone).get_location()
-
+                target_civilian_location = Civilian.objects.get(
+                    phone=phone).get_location()
 
                 resp = (json.dumps({"response": {
                     "code": http_codes["Created"],
                     "task_successful": True,
                     "content": {
                         "details": {
-                            "target_user_location":target_civilian_location
-                            },
+                            "target_user_location": target_civilian_location
+                        },
                         "user_type": main_user.__class__.__name__,
                     },
                     "auth_keys": {"access_token": main_user.get_token()
-                                }
+                                  }
                 }
                 })
                 )
 
                 return CORS(resp).allow_all(auth=main_user.get_token(), status_code=201)
-
 
             else:
 
@@ -874,14 +894,12 @@ def get_user_location(request, phone):
         return CORS(resp).allow_all(status_code=405)
 
 
-
 def get_all_beeps(request):
 
     if request.method == 'GET':
 
         try:
             auth_successful = Token.verify_token(request)
-            
 
             if auth_successful:
 
@@ -896,24 +914,22 @@ def get_all_beeps(request):
 
                 target_civilian_beeeps = main_user.get_all_beeeps()
 
-
                 resp = (json.dumps({"response": {
                     "code": http_codes["Created"],
                     "task_successful": True,
                     "content": {
                         "details": {
-                            "target_user_beeeps":target_civilian_beeeps
-                            },
+                            "target_user_beeeps": target_civilian_beeeps
+                        },
                         "user_type": main_user.__class__.__name__,
                     },
                     "auth_keys": {"access_token": main_user.get_token()
-                                }
+                                  }
                 }
                 })
                 )
 
                 return CORS(resp).allow_all(auth=main_user.get_token(), status_code=201)
-
 
             else:
 
@@ -959,7 +975,7 @@ def start_or_stop_beeep(request):
     if request.method == 'POST':
 
         auth_successful = Token.verify_token(request)
-        
+
         try:
 
             if auth_successful:
@@ -973,9 +989,6 @@ def start_or_stop_beeep(request):
 
                 beeep_start_response = Beeep.handle_beeep(main_user, request)
 
-                
-
-                
                 resp = (json.dumps({"response": {
                     "code": http_codes["Created"],
                     "task_successful": True,
@@ -1026,15 +1039,6 @@ def start_or_stop_beeep(request):
                             "user": "", "message": "bad request method"}, "auth_keys": {"access_token": ""}}}))
 
         return CORS(resp).allow_all(status_code=405)
-
-
-
-
-
-
-
-
-
 
 
 @csrf_exempt

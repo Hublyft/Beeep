@@ -21,9 +21,18 @@ except:
     HOSTNAME = 'localhost'
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
-BASE_DIR = os.path.dirname(os.path.dirname( os.path.dirname(os.path.abspath(__file__)) ))
+BASE_DIR = os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))))
 TEMPLATE_DIR = os.path.join(BASE_DIR, 'templates')
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
+
+if os.name == 'nt':
+    VENV_BASE = os.environ['VIRTUAL_ENV']
+    os.environ['PATH'] = os.path.join(
+        VENV_BASE, 'Lib\\site-packages\\osgeo') + ';' + os.environ['PATH']
+    os.environ['PROJ_LIB'] = os.path.join(
+        VENV_BASE, 'Lib\\site-packages\\osgeo\\data\\proj') + ';' + os.environ['PATH']
+
 
 LOGIN_REDIRECT_URL = '/'
 LOGOUT_REDIRECT_URL = '/auth/login'
@@ -42,7 +51,6 @@ SECRET_KEY = 'v$%^qr!1@t+!fe@8=#2f1csz@8-=wob$3+2($2dz-k4+m=#pbo'
 #     HOSTNAME = socket.gethostname()
 # except:
 #     HOSTNAME = 'localhost'
-
 
 
 # LOGIN_REDIRECT_URL = '/'
@@ -65,6 +73,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
+    'django.contrib.gis',
     'corsheaders',
     'main',
     'useraccounts',
@@ -110,7 +119,7 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            "hosts": [os.environ.get('REDIS_URL','redis://localhost:6379')],
+            "hosts": [os.environ.get('REDIS_URL', 'redis://localhost:6379')],
         },
     },
 }
@@ -118,7 +127,7 @@ CHANNEL_LAYERS = {
 CACHES = {
     "default": {
         "BACKEND": "django_redis.cache.RedisCache",
-        "LOCATION": [os.environ.get('REDIS_URL','redis://localhost:6379')],
+        "LOCATION": [os.environ.get('REDIS_URL', 'redis://localhost:6379')],
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
@@ -127,13 +136,24 @@ CACHES = {
 # Database
 # https://docs.djangoproject.com/en/2.0/ref/settings/#databases
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.sqlite3',
+#         'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+#     }
+# }
+
 DATABASES = {
     'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': os.path.join(BASE_DIR, 'db.sqlite3'),
+        'ENGINE': 'django.contrib.gis.db.backends.postgis',
+        'NAME': 'gis',
+        'USER': 'user001',
+        'PASSWORD': '123456789',
+        'HOST': os.environ.get('POSTGRES_HOST','localhost'),
+        'PORT': '5432',
+        'OPTIONS': {'sslmode': 'require'},
     }
 }
-
 
 # Password validation
 # https://docs.djangoproject.com/en/2.0/ref/settings/#auth-password-validators
@@ -180,11 +200,11 @@ STATICILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFileStorage'
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
-SENDGRID_API_KEY = "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" # os.getenv('SENDGRID_API_KEY')
+# os.getenv('SENDGRID_API_KEY')
+SENDGRID_API_KEY = "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"
 
 EMAIL_HOST = 'smtp.sendgrid.net'
-EMAIL_HOST_USER = 'apikey' # this is exactly the value 'apikey'
+EMAIL_HOST_USER = 'apikey'  # this is exactly the value 'apikey'
 EMAIL_HOST_PASSWORD = SENDGRID_API_KEY
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-

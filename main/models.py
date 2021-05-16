@@ -1,4 +1,6 @@
+from helpers.cloud_messaging import CloudMessaging
 import sys
+from firebase_admin import messaging
 from django.db import models
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate, login, logout
@@ -13,9 +15,11 @@ from beeep.settings.base import BASE_DIR
 from scipy.spatial import distance
 from django.db.models import F, Func, Value, CharField
 from math import radians, cos, sin, asin, sqrt
+from django.contrib.gis.db import models as gmodels
+from django.contrib.gis.geos import Point
 import base64
 import io
-from helpers.email import send_verification_mail
+# from helpers.email import send_verification_mail
 import urllib3
 import requests
 
@@ -67,7 +71,7 @@ class Subscription(models.Model):
         return self.user.firstname
 
 
-class Lawyer(models.Model):
+class Lawyer(gmodels.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     plan = models.ForeignKey(
         Plan, on_delete=models.CASCADE, blank=True, null=True)
@@ -78,8 +82,8 @@ class Lawyer(models.Model):
     scn_number = models.CharField(max_length=150, blank=True, null=True)
     email = models.CharField(max_length=150, blank=True, null=True)
     phone = models.CharField(max_length=150, blank=True, null=True)
-    longitude = models.FloatField(blank=True, default=0.0)
-    latitude = models.FloatField(blank=True, default=0.0)
+    location = gmodels.PointField(Point(
+        8.991656829394168, 7.432405867962554),geography=True)
     is_verified = models.BooleanField(default=False)
     token = models.CharField(max_length=200, null=True, blank=True)
     image = models.ImageField(
@@ -162,40 +166,42 @@ class Lawyer(models.Model):
         return response
 
     @staticmethod
-    def get_closest(user):
+    def get_lng_lat(location:Point,type):
+        if type=="lat":
+            flocation = location
+            return flocation.x
+        if type=="lng":
+            flocation = location
+            return flocation.y
 
-        lawyers = Lawyer.objects.all().values("longitude", "latitude",
-                                              "firstname", "lastname", "phone","on_call","image")
+    @staticmethod
+    def get_closest(lawyers):
+
+        # lawyers = Lawyer.objects.all().values("longitude", "latitude",
+        #                                       "firstname", "lastname", "phone", "on_call", "image")
 
         lawyer_frame = pd.DataFrame(list(lawyers))
 
-        distances = solve_distances(
-            lawyer_frame, [user.longitude, user.latitude])
-        lawyer_frame["distance"] = distances
+        lawyer_frame = appendLatLng(lawyer_frame)
 
-        closest_lawyers = [lawyer_frame.sort_values('distance').to_dict(orient="index")[
-            key] for key in lawyer_frame.sort_values('distance').to_dict(orient="index")]
+        # distances = solve_distances(
+        #     lawyer_frame, [user.longitude, user.latitude])
+        # lawyer_frame["distance"] = distances
+
+        closest_lawyers = [lawyer_frame.to_dict(orient="index")[
+            key] for key in lawyer_frame.to_dict(orient="index")]
 
         return closest_lawyers
 
     def get_details(self):
-        user_data = self.__dict__
         data = {}
-
-        for key in user_data:
-            if key.startswith("_"):
-                continue
-
-            if key == "image":
-
-                try:
-                    data["image"] = user_data[key].url
-                except:
-                    data["image"] = ""
-
-                continue
-
-            data[key] = user_data[key]
+        data["firstname"] = self.firstname
+        data["lastname"] = self.lastname
+        data["twitter_handle"] = self.twitter_handle
+        data["email"] = self.email
+        data["phone"] = self.phone
+        data["is_verified"] = self.is_verified
+        data["twitter_handle"] = self.twitter_handle
 
         return data
 
@@ -224,9 +230,7 @@ class Lawyer(models.Model):
     def __str__(self):
         return self.firstname
 
-    def create(self, username="null", firstname="null", lastname="null", twitter_handle="", email="null@null.com", password="00000000", address="none supplied", phone="0",image="null"):
-
-
+    def create(self, username="null", firstname="null", lastname="null", twitter_handle="", email="null@null.com", password="00000000", address="none supplied", phone="0", image="null"):
 
         user = User.objects.create(
             username=phone, first_name=firstname, last_name=lastname, email=email)
@@ -242,16 +246,14 @@ class Lawyer(models.Model):
             img.name = "default_profile.jpg"
             image = Lawyer.compressImage(img)
 
-
         lawyer = Lawyer.objects.create(user=user, firstname=firstname, lastname=lastname,
-                                       twitter_handle=twitter_handle, email=email, address=address, phone=phone,image=image)
+                                       twitter_handle=twitter_handle, email=email, address=address, phone=phone, image=image)
 
         return lawyer
 
     def add_location(self, geolocation):
-
-        self.longitude = geolocation["longitude"]
-        self.latitude = geolocation["latitude"]
+        self.location = Point(
+            float(geolocation["longitude"]), float(geolocation["latitude"]))
         self.save()
 
         return True
@@ -307,7 +309,7 @@ class Buddy(models.Model):
         return data
 
 
-class Civilian(models.Model):
+class Civilian(gmodels.Model):
     user = models.OneToOneField(User, on_delete=models.CASCADE)
     lawyer = models.ManyToManyField(Lawyer, blank=True)
     plan = models.ForeignKey(
@@ -319,8 +321,8 @@ class Civilian(models.Model):
     address = models.CharField(max_length=150, blank=True, null=True)
     email = models.CharField(max_length=150, blank=True, null=True)
     phone = models.CharField(max_length=150, blank=True, null=True)
-    longitude = models.FloatField(blank=True, null=True)
-    latitude = models.FloatField(blank=True, null=True)
+    location = gmodels.PointField(default=Point(
+        8.991656829394168, 7.432405867962554),geography=True)
     is_verified = models.BooleanField(default=False)
     is_beeeping = models.BooleanField(default=False)
     image = models.ImageField(
@@ -378,7 +380,6 @@ class Civilian(models.Model):
         if firebase_key:
             self.firebase_key = firebase_key
 
-
         plan_id = data.get("plan")
         if plan_id:
             plan = Plan.objects.filter(id=plan_id)
@@ -410,25 +411,14 @@ class Civilian(models.Model):
         return {"is_added": True, "details": new_buddy.get_details()}
 
     def get_details(self):
-        user_data = self.__dict__
-        print(user_data)
         data = {}
-
-        for key in user_data:
-            if key.startswith("_"):
-                continue
-
-            if key == "image":
-
-                try:
-                    data["image"] = user_data[key].url
-                except:
-                    data["image"] = ""
-
-                continue
-
-            data[key] = user_data[key]
-
+        data["firstname"] = self.firstname
+        data["lastname"] = self.lastname
+        data["twitter_handle"] = self.twitter_handle
+        data["email"] = self.email
+        data["phone"] = self.phone
+        data["is_verified"] = self.is_verified
+        data["twitter_handle"] = self.twitter_handle
         data["buddies"] = self.get_buddies()
 
         return data
@@ -465,9 +455,8 @@ class Civilian(models.Model):
         return civilian
 
     def add_location(self, geolocation):
-
-        self.longitude = geolocation["longitude"]
-        self.latitude = geolocation["latitude"]
+        self.location = Point(
+            float(geolocation["longitude"]), float(geolocation["latitude"]))
         self.save()
 
         return True
@@ -477,8 +466,8 @@ class Civilian(models.Model):
         return {
             "fname": self.lastname,
             "lname": self.firstname,
-            "lng": self.longitude,
-            "lat": self.latitude
+            "lng": self.location.y,
+            "lat": self.location.x
         }
 
     def get_firebase_key(self):
@@ -715,29 +704,9 @@ class Beeep(models.Model):
                 buddy_phone = buddies[0]["phonenumber"]
                 buddy_firstname = buddies[0]["firstname"]
                 buddy = Civilian.objects.get(phone=buddy_phone)
+                CloudMessaging.send_beep_to_buddy(buddy.firebase_key,buddy.firstname)
 
-                buddy_firebase_key = buddy.firebase_key
 
-                newHeaders = {'Content-type': 'application/json',
-                              'Authorization': 'key=AAAAjMDlSuE:APA91bEJEuuo7NjYL1D5OjxDKmbqXeUYv-McNhW2JvMTkyma_n4ht6sj-NKNhErMJjEeQ_Xe-gljkb0MAp-w-UFBLW2FCDoZSPeVjhpaqo0NHn5r-RXyOoAkVB5O0KZetIU9O_0E1XWI'}
-                url = "https://fcm.googleapis.com/fcm/send"
-                body = {
-                    "to": buddy_firebase_key,
-                    "notification": {
-                        "title": "Beep Alert",
-                        "body": "{} might be in danger he sent out a beeep".format(buddy_firstname)
-                    
-                    },
-                    "data": {
-                        'click_action': 'FLUTTER_NOTIFICATION_CLICK',
-                        'id': '1',
-                        'status': 'done',
-                        'name':buddy_firstname
-                    }
-                }
-                response = requests.post(
-                    url, data=json.dumps(body), headers=newHeaders)
-                print(response.content)
 
                 return {"status": True, "message": "New Beeep started"}
 
@@ -837,3 +806,10 @@ def haversine(lat1, lon1, lat2, lon2):
     c = 2*asin(sqrt(a))
 
     return R * c
+def appendLatLng(dataframe:pd.DataFrame):
+    dataframe["latitude"] = dataframe.apply(lambda row:row["location"][0],axis=1)
+    dataframe["longitude"] = dataframe.apply(lambda row:row["location"][1],axis=1)
+    dataframe["distance"] = dataframe.apply(lambda row:row["distance"].m,axis=1)
+    dataframe = dataframe.drop(columns=["location"])
+    return dataframe
+
